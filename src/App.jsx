@@ -721,7 +721,7 @@ function AllSessionsPage({ data, onBack }) {
                       <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
                         {s.format === "scramble" ? (
                           [{key:"A",ids:m.playerAIds||[]},{key:"B",ids:m.playerBIds||[]}].map(team => {
-                            const scoreKey = team.ids[0];
+                            const scoreKey = m.id + "_" + team.key;
                             const teamScores = (m.playerScores||{})[scoreKey]||[];
                             const gross = teamScores.filter(x=>x>0).reduce((a,b)=>a+b,0);
                             const pars = courseObj?.pars||Array(18).fill(4);
