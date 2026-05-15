@@ -264,9 +264,8 @@ function ScoreDot({ score, par, size = 20 }) {
 function Nav({ page, setPage, adminUnlocked }) {
   const tabs = [
     { id: "leaderboard", label: "LIVE" },
-    { id: "sessions", label: "SESSIONS" },
     { id: "score", label: "SCORE" },
-    { id: "records", label: "RECORDS" },
+    { id: "records", label: "HISTORY" },
     { id: "admin", label: "ADMIN" },
   ];
   return (
@@ -408,7 +407,7 @@ function MatchRow({ m, teamA, teamB, players, expanded, onToggle }) {
 }
 
 // ── Leaderboard ───────────────────────────────────────────────────────────────
-function LeaderboardPage({ data }) {
+function LeaderboardPage({ data, onNavigate }) {
   const [expandedMatch, setExpandedMatch] = useState(null);
   const { players } = data;
   const courses = data.courses || [];
@@ -421,6 +420,8 @@ function LeaderboardPage({ data }) {
   const allActiveMatches = matches;
   const { aPoints, bPoints } = computePoints(allActiveMatches);
   const { aProj, bProj } = computeProjected(allActiveMatches);
+  const activeSession = sessions.find(s => s.status === "active");
+  const activeSessionMatches = activeSession ? matches.filter(m => m.sessionId === activeSession.id) : [];
 
   return (
     <div style={{ paddingBottom: 100 }}>
@@ -430,9 +431,15 @@ function LeaderboardPage({ data }) {
         <div style={{ color: C.grey2, ...BC, fontSize: 9, fontWeight: 700, letterSpacing: "0.28em", marginTop: 4 }}>THE GREATEST RIVALRY IN GOLF</div>
       </div>
       <ScoreBanner teamA={teamA} teamB={teamB} aPoints={aPoints} bPoints={bPoints} aProj={aProj} bProj={bProj} totalMatches={allActiveMatches.length} />
-      {sessions.length === 0 && <div style={{ textAlign: "center", padding: "56px 20px", color: C.grey2, ...BC, fontSize: 12, fontWeight: 600, letterSpacing: "0.1em" }}>NO ACTIVE SESSIONS</div>}
-      {sessions.map(session => {
-        const sessionMatches = matches.filter(m => m.sessionId === session.id);
+      {!activeSession && (
+        <div style={{ textAlign: "center", padding: "56px 20px" }}>
+          <div style={{ fontSize: 32, marginBottom: 12 }}>🏌️</div>
+          <div style={{ color: C.grey2, ...BC, fontSize: 12, fontWeight: 600, letterSpacing: "0.1em" }}>NO ACTIVE SESSION</div>
+          <div style={{ color: C.grey3, ...BC, fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", marginTop: 6 }}>SET ONE IN ADMIN → CUP SETUP → SESSIONS</div>
+        </div>
+      )}
+      {activeSession && [activeSession].map(session => {
+        const sessionMatches = activeSessionMatches;
         const course = courses.find(c => c.id === session.courseId);
         return (
           <div key={session.id} style={{ marginBottom: 32 }}>
@@ -630,6 +637,128 @@ function PlayerScorecard({ player, match, course, onBack }) {
           ))}
         </div>
       )}
+      <div style={{ textAlign:"center", padding:"20px 16px 0" }}>
+        <button onClick={() => onNavigate && onNavigate("allsessions")} style={{ background:"none", border:`1px solid ${C.border}`, borderRadius:10, padding:"10px 24px", color:C.grey2, cursor:"pointer", fontFamily:"'Barlow Condensed','Arial Narrow',Arial,sans-serif", fontSize:11, fontWeight:700, letterSpacing:"0.14em" }}>ALL SESSIONS →</button>
+      </div>
+    </div>
+  );
+}
+
+// ── All Sessions Page ───────────────────────────────────────────────────────
+function AllSessionsPage({ data, onBack }) {
+  const { players } = data;
+  const courses = data.courses || [];
+  const cy = data.currentYear;
+  const sessions = (cy?.sessions || []).slice().sort((a,b) => (a.name||"").localeCompare(b.name||""));
+  const matches = cy?.matches || [];
+  const cyTeams = cy?.teams || [];
+  const teamA = cyTeams.find(t=>t.id==="A")||{id:"A",name:"Team A"};
+  const teamB = cyTeams.find(t=>t.id==="B")||{id:"B",name:"Team B"};
+  const [expanded, setExpanded] = useState(null);
+  const [scorecardView, setScorecardView] = useState(null);
+  const getPName = id => players.find(p=>p.id===id)?.name || id;
+
+  if (scorecardView) {
+    const course = courses.find(c => c.id === sessions.find(s => s.id === scorecardView.match.sessionId)?.courseId);
+    return <PlayerScorecard player={scorecardView.player} match={scorecardView.match} course={course} onBack={() => setScorecardView(null)} />;
+  }
+
+  const statusColor = s => s.status === "active" ? C.white : s.status === "completed" ? "#6FCF8A" : C.grey3;
+  const statusLabel = s => s.status === "active" ? "● LIVE" : s.status === "completed" ? "✓ DONE" : "SCHEDULED";
+
+  return (
+    <div style={{ padding: "24px 16px 100px" }}>
+      <button onClick={onBack} style={{ background:"none", border:"none", color:C.grey2, cursor:"pointer", fontFamily:"'Barlow Condensed','Arial Narrow',Arial,sans-serif", fontSize:10, fontWeight:700, letterSpacing:"0.1em", marginBottom:16, padding:0 }}>← BACK</button>
+      <div style={{ marginBottom: 22 }}>
+        <div style={{ color: C.white, fontFamily:"'Barlow Condensed','Arial Narrow',Arial,sans-serif", fontSize: 26, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase" }}>Sessions</div>
+        <div style={{ color: C.grey2, fontFamily:"'Barlow Condensed','Arial Narrow',Arial,sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.2em", marginTop: 2 }}>ALL ROUNDS & RESULTS</div>
+      </div>
+      {sessions.length === 0 && <div style={{ color: C.grey2, fontFamily:"'Barlow Condensed','Arial Narrow',Arial,sans-serif", fontSize: 11, fontWeight: 600, letterSpacing: "0.1em" }}>NO SESSIONS YET</div>}
+      {sessions.map(s => {
+        const sMatches = matches.filter(m => m.sessionId === s.id);
+        const { aPoints, bPoints } = computePoints(sMatches);
+        const course = courses.find(c => c.id === s.courseId);
+        const isExp = expanded === s.id;
+        return (
+          <Card key={s.id} style={{ marginBottom: 8 }} onClick={() => setExpanded(isExp ? null : s.id)}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ color: C.white, fontFamily:"'Barlow Condensed','Arial Narrow',Arial,sans-serif", fontSize: 18, fontWeight: 800, letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 6 }}>{s.name}</div>
+                <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                  <Tag color={statusColor(s)}>{statusLabel(s)}</Tag>
+                  <Tag color={C.grey2}>{FORMAT_LABELS[s.format] || s.format}</Tag>
+                  {course && <Tag color={C.grey2}>{course.name}</Tag>}
+                  {s.date && <Tag color={C.grey3}>{s.date}</Tag>}
+                </div>
+              </div>
+              <div style={{ textAlign: "right", flexShrink: 0, marginLeft: 12 }}>
+                <div style={{ fontFamily:"'Barlow Condensed','Arial Narrow',Arial,sans-serif", fontSize: 24, fontWeight: 800, lineHeight: 1 }}>
+                  <span style={{ color: C.white }}>{aPoints % 1 ? aPoints.toFixed(1) : aPoints}</span>
+                  <span style={{ color: C.grey3 }}> – </span>
+                  <span style={{ color: C.grey1 }}>{bPoints % 1 ? bPoints.toFixed(1) : bPoints}</span>
+                </div>
+                <div style={{ color: C.grey2, fontFamily:"'Barlow Condensed','Arial Narrow',Arial,sans-serif", fontSize: 8, fontWeight: 600, letterSpacing: "0.1em", marginTop: 2 }}>{sMatches.length} MATCHES</div>
+              </div>
+            </div>
+            {isExp && (
+              <div style={{ marginTop: 14, borderTop: `1px solid ${C.grey3}`, paddingTop: 14 }} onClick={e => e.stopPropagation()}>
+                {sMatches.length === 0 && <div style={{ color: C.grey3, fontFamily:"'Barlow Condensed','Arial Narrow',Arial,sans-serif", fontSize: 11 }}>NO MATCHES SET UP</div>}
+                {sMatches.map(m => {
+                  const st = computeMatchFromScores(m);
+                  const allPlayers = [...(m.playerAIds||[]), ...(m.playerBIds||[])].map(id => players.find(p=>p.id===id)).filter(Boolean);
+                  const courseObj = courses.find(c => c.id === s.courseId);
+                  return (
+                    <div key={m.id} style={{ marginBottom: 14, paddingBottom: 14, borderBottom: `1px solid ${C.grey3}` }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                        <div>
+                          <div style={{ color:C.white, fontFamily:"'Barlow Condensed','Arial Narrow',Arial,sans-serif", fontSize:12, fontWeight:700 }}>{(m.playerAIds||[]).map(getPName).join(" / ")}</div>
+                          <div style={{ color:C.grey1, fontFamily:"'Barlow Condensed','Arial Narrow',Arial,sans-serif", fontSize:12, fontWeight:700 }}>{(m.playerBIds||[]).map(getPName).join(" / ")}</div>
+                        </div>
+                        <div style={{ color: C.grey2, fontFamily:"'Barlow Condensed','Arial Narrow',Arial,sans-serif", fontSize:11, fontWeight:800, letterSpacing:"0.06em" }}>
+                          {st.complete ? st.label : st.holesPlayed > 0 ? `${st.label} · THRU ${st.holesPlayed}` : "NOT STARTED"}
+                        </div>
+                      </div>
+                      <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                        {s.format === "scramble" ? (
+                          [{key:"A",ids:m.playerAIds||[]},{key:"B",ids:m.playerBIds||[]}].map(team => {
+                            const scoreKey = team.ids[0];
+                            const teamScores = (m.playerScores||{})[scoreKey]||[];
+                            const gross = teamScores.filter(x=>x>0).reduce((a,b)=>a+b,0);
+                            const pars = courseObj?.pars||Array(18).fill(4);
+                            const holesPlayed = teamScores.filter(x=>x>0).length;
+                            const vp = gross - pars.slice(0,holesPlayed).reduce((a,b)=>a+b,0);
+                            const label = team.ids.map(id=>(players.find(p=>p.id===id)?.name||"").split(" ")[0]).join(" / ");
+                            const fakePlayer = {id:scoreKey, name:label};
+                            return (
+                              <button key={team.key} onClick={()=>setScorecardView({match:m,player:fakePlayer})} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:8, padding:"6px 10px", cursor:"pointer", textAlign:"left" }}>
+                                <div style={{ color:C.white, fontFamily:"'Barlow Condensed','Arial Narrow',Arial,sans-serif", fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.04em" }}>{label}</div>
+                                {gross>0 && <div style={{ color:C.grey2, fontFamily:"'Barlow Condensed','Arial Narrow',Arial,sans-serif", fontSize:9, fontWeight:600, marginTop:2 }}>{gross} <span style={{ color:vp<=0?C.birdie:C.bogey }}>{vp===0?"E":vp>0?`+${vp}`:vp}</span></div>}
+                              </button>
+                            );
+                          })
+                        ) : (
+                          allPlayers.map(pl => {
+                            const scores = (m.playerScores||{})[pl.id]||[];
+                            const gross = scores.filter(x=>x>0).reduce((a,b)=>a+b,0);
+                            const pars = courseObj?.pars||Array(18).fill(4);
+                            const vp = playerVsPar(pl.id, m.playerScores||{}, pars);
+                            return (
+                              <button key={pl.id} onClick={()=>setScorecardView({match:m,player:pl})} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:8, padding:"6px 10px", cursor:"pointer", textAlign:"left" }}>
+                                <div style={{ color:C.white, fontFamily:"'Barlow Condensed','Arial Narrow',Arial,sans-serif", fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.04em" }}>{pl.name}</div>
+                                {gross>0 && <div style={{ color:C.grey2, fontFamily:"'Barlow Condensed','Arial Narrow',Arial,sans-serif", fontSize:9, fontWeight:600, marginTop:2 }}>{gross} <span style={{ color:vp<=0?C.birdie:C.bogey }}>{vp===0?"E":vp>0?`+${vp}`:vp}</span></div>}
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Card>
+        );
+      })}
     </div>
   );
 }
@@ -1759,15 +1888,39 @@ function AdminCupSetupTab({ data, onUpdate }) {
             return (
               <Card key={s.id} style={{ marginBottom: 6 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                  <div>
+                  <div style={{ flex: 1 }}>
                     <div style={{ color: "#fff", fontFamily: "'Barlow Condensed', 'Arial Narrow', Arial, sans-serif", fontSize: 13, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4 }}>{s.name}</div>
-                    <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                    <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 8 }}>
                       <Tag>{FORMAT_LABELS[s.format]}</Tag>
                       {course && <Tag color={C.grey2}>{course.name}</Tag>}
                       {s.date && <Tag color={C.grey3}>{s.date}</Tag>}
                     </div>
+                    <div style={{ display: "flex", gap: 5 }}>
+                      {["scheduled","active","completed"].map(status => {
+                        const isCur = (s.status||"scheduled") === status;
+                        const col = status==="active"?C.white:status==="completed"?"#6FCF8A":C.grey2;
+                        return (
+                          <button key={status} onClick={async e => {
+                            e.stopPropagation();
+                            const updated = sessions.map(sess => ({
+                              ...sess,
+                              status: sess.id===s.id ? status : (status==="active"&&(sess.status||"scheduled")==="active" ? "completed" : sess.status||"scheduled")
+                            }));
+                            await onUpdate({...data, currentYear:{...cy, sessions:updated}});
+                          }} style={{
+                            background: isCur?"rgba(255,255,255,0.12)":"rgba(255,255,255,0.04)",
+                            border:`1px solid ${isCur?"rgba(255,255,255,0.3)":"rgba(255,255,255,0.1)"}`,
+                            borderRadius:6, padding:"4px 8px", cursor:"pointer", color:isCur?col:C.grey3,
+                            fontFamily:"'Barlow Condensed','Arial Narrow',Arial,sans-serif",
+                            fontSize:9, fontWeight:700, letterSpacing:"0.1em", textTransform:"uppercase",
+                          }}>
+                            {status==="active"?"● LIVE":status==="completed"?"✓ DONE":"SCHEDULED"}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                  <Btn onClick={() => deleteSession(s.id)} color={C.danger} style={{ padding: "6px 9px", fontSize: 11 }}>x</Btn>
+                  <Btn onClick={() => deleteSession(s.id)} color={C.danger} style={{ padding: "6px 9px", fontSize: 11, marginLeft: 8 }}>x</Btn>
                 </div>
               </Card>
             );
@@ -3325,8 +3478,9 @@ export default function App() {
       <div style={{ minHeight: "100vh", background: C.bg, color: C.white, paddingBottom: 80, position: "relative" }}>
         <Background />
         <div style={{ position: "relative", zIndex: 1, maxWidth: 480, margin: "0 auto" }}>
-          {page === "leaderboard" && <LeaderboardPage data={data} />}
-          {page === "sessions" && <SessionsPage data={data} />}
+          {page === "leaderboard" && <LeaderboardPage data={data} onNavigate={setPage} />}
+          {page === "allsessions" && <AllSessionsPage data={data} onBack={() => setPage("leaderboard")} />}
+          {page === "sessions" && <AllSessionsPage data={data} onBack={() => setPage("leaderboard")} />}
           {page === "score" && <ScoreEntryPage data={data} onUpdate={handleUpdate} />}
           {page === "records" && <RecordsPage data={data} />}
           {page === "admin" && <AdminPage data={data} onUpdate={handleUpdate} adminUnlocked={adminUnlocked} setAdminUnlocked={setAdminUnlocked} onExport={exportData} onImport={importData} />}
