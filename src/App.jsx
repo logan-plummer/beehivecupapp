@@ -457,6 +457,9 @@ function LeaderboardPage({ data, onNavigate }) {
           </div>
         );
       })}
+      <div style={{ textAlign:"center", padding:"20px 16px 0" }}>
+        <button onClick={() => onNavigate && onNavigate("allsessions")} style={{ background:"none", border:`1px solid ${C.border}`, borderRadius:10, padding:"10px 24px", color:C.grey2, cursor:"pointer", fontFamily:"'Barlow Condensed','Arial Narrow',Arial,sans-serif", fontSize:11, fontWeight:700, letterSpacing:"0.14em" }}>ALL SESSIONS →</button>
+      </div>
     </div>
   );
 }
@@ -637,9 +640,6 @@ function PlayerScorecard({ player, match, course, onBack }) {
           ))}
         </div>
       )}
-      <div style={{ textAlign:"center", padding:"20px 16px 0" }}>
-        <button onClick={() => onNavigate && onNavigate("allsessions")} style={{ background:"none", border:`1px solid ${C.border}`, borderRadius:10, padding:"10px 24px", color:C.grey2, cursor:"pointer", fontFamily:"'Barlow Condensed','Arial Narrow',Arial,sans-serif", fontSize:11, fontWeight:700, letterSpacing:"0.14em" }}>ALL SESSIONS →</button>
-      </div>
     </div>
   );
 }
