@@ -465,7 +465,7 @@ function LeaderboardPage({ data, onNavigate }) {
 }
 
 // ── Player Scorecard ──────────────────────────────────────────────────────────
-function PlayerScorecard({ player, match, course, onBack }) {
+function PlayerScorecard({ player, match, course, onBack, players = [] }) {
   const pars = course?.pars || Array(18).fill(4);
   const scores = (match.playerScores || {})[player.id] || [];
   const front = HOLES.slice(0, 9);
@@ -557,18 +557,18 @@ function PlayerScorecard({ player, match, course, onBack }) {
       <div style={{ padding: "0 16px 16px" }}>
         <button onClick={onBack} style={{ background: "none", border: "none", color: C.grey2, ...BC, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", cursor: "pointer", marginBottom: 14, padding: 0 }}>← BACK</button>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
-          <div>
-            <div style={{ color: C.white, ...BC, fontSize: 26, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase" }}>{player.name}</div>
-            <div style={{ color: C.grey2, ...BC, fontSize: 9, fontWeight: 700, letterSpacing: "0.2em", marginTop: 2 }}>
-              {course?.name?.toUpperCase() || "SCORECARD"}{course ? " · PAR " + totalPar : ""}
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            {(() => { const pl = players.find(p => p.id === player.id); return pl ? <PlayerAvatar player={pl} size={44} fontSize={15} /> : null; })()}
+            <div>
+              <div style={{ color: C.white, ...BC, fontSize: 26, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase" }}>{player.name}</div>
+              <div style={{ color: C.grey2, ...BC, fontSize: 9, fontWeight: 700, letterSpacing: "0.2em", marginTop: 2 }}>
+                {course?.name?.toUpperCase() || "SCORECARD"}{course ? " · PAR " + totalPar : ""}
+              </div>
             </div>
           </div>
           {total > 0 && (
             <div style={{ textAlign: "right" }}>
-              <div style={{ color: C.white, ...BC, fontSize: 36, fontWeight: 800, lineHeight: 1 }}>{total}</div>
-              <div style={{ color: totalDiff < 0 ? C.birdie : totalDiff === 0 ? C.white : C.bogey, ...BC, fontSize: 12, fontWeight: 700, marginTop: 2 }}>
-                {fmtVsPar(totalDiff)}
-              </div>
+              <div style={{ color: totalDiff < 0 ? C.birdie : totalDiff === 0 ? C.white : C.bogey, ...BC, fontSize: 36, fontWeight: 800, lineHeight: 1 }}>{fmtVsPar(totalDiff)}</div>
             </div>
           )}
         </div>
@@ -666,7 +666,7 @@ function AllSessionsPage({ data, onBack }) {
 
   if (scorecardView) {
     const course = courses.find(c => c.id === sessions.find(s => s.id === scorecardView.match.sessionId)?.courseId);
-    return <PlayerScorecard player={scorecardView.player} match={scorecardView.match} course={course} onBack={() => setScorecardView(null)} />;
+    return <PlayerScorecard player={scorecardView.player} match={scorecardView.match} course={course} onBack={() => setScorecardView(null)} players={players} />;
   }
 
   const statusColor = s => s.status === "active" ? C.white : s.status === "completed" ? "#6FCF8A" : C.grey3;
@@ -783,7 +783,7 @@ function SessionsPage({ data }) {
 
   if (scorecardView) {
     const course = courses.find(c => c.id === sessions.find(s => s.id === scorecardView.match.sessionId)?.courseId);
-    return <PlayerScorecard player={scorecardView.player} match={scorecardView.match} course={course} onBack={() => setScorecardView(null)} />;
+    return <PlayerScorecard player={scorecardView.player} match={scorecardView.match} course={course} onBack={() => setScorecardView(null)} players={players} />;
   }
 
   return (
