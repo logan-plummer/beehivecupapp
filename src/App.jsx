@@ -704,21 +704,12 @@ function AllSessionsPage({ data, onBack }) {
               <div style={{ marginTop: 14, borderTop: `1px solid ${C.grey3}`, paddingTop: 14 }} onClick={e => e.stopPropagation()}>
                 {sMatches.length === 0 && <div style={{ color: C.grey3, fontFamily:"'Barlow Condensed','Arial Narrow',Arial,sans-serif", fontSize: 11 }}>NO MATCHES SET UP</div>}
                 {sMatches.map(m => {
-                  const st = computeMatchFromScores(m);
-                  const allPlayers = [...(m.playerAIds||[]), ...(m.playerBIds||[])].map(id => players.find(p=>p.id===id)).filter(Boolean);
                   const courseObj = courses.find(c => c.id === s.courseId);
+                  const allPlayers = [...(m.playerAIds||[]), ...(m.playerBIds||[])].map(id => players.find(p=>p.id===id)).filter(Boolean);
                   return (
-                    <div key={m.id} style={{ marginBottom: 14, paddingBottom: 14, borderBottom: `1px solid ${C.grey3}` }}>
-                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-                        <div>
-                          <div style={{ color:C.white, fontFamily:"'Barlow Condensed','Arial Narrow',Arial,sans-serif", fontSize:12, fontWeight:700 }}>{(m.playerAIds||[]).map(getPName).join(" / ")}</div>
-                          <div style={{ color:C.grey1, fontFamily:"'Barlow Condensed','Arial Narrow',Arial,sans-serif", fontSize:12, fontWeight:700 }}>{(m.playerBIds||[]).map(getPName).join(" / ")}</div>
-                        </div>
-                        <div style={{ color: C.grey2, fontFamily:"'Barlow Condensed','Arial Narrow',Arial,sans-serif", fontSize:11, fontWeight:800, letterSpacing:"0.06em" }}>
-                          {st.complete ? st.label : st.holesPlayed > 0 ? `${st.label} · THRU ${st.holesPlayed}` : "NOT STARTED"}
-                        </div>
-                      </div>
-                      <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                    <div key={m.id} style={{ marginBottom: 8 }}>
+                      <MatchRow m={m} teamA={teamA} teamB={teamB} players={players} expanded={false} onToggle={()=>{}} />
+                      <div style={{ display:"flex", gap:6, flexWrap:"wrap", padding:"8px 10px", background:"rgba(0,0,0,0.2)" }}>
                         {s.format === "scramble" ? (
                           [{key:"A",ids:m.playerAIds||[]},{key:"B",ids:m.playerBIds||[]}].map(team => {
                             const scoreKey = m.id + "_" + team.key;
@@ -727,25 +718,29 @@ function AllSessionsPage({ data, onBack }) {
                             const pars = courseObj?.pars||Array(18).fill(4);
                             const holesPlayed = teamScores.filter(x=>x>0).length;
                             const vp = gross - pars.slice(0,holesPlayed).reduce((a,b)=>a+b,0);
+                            const vpStr = vp===0?"E":vp>0?`+${vp}`:`${vp}`;
+                            const vpColor = vp<=0?C.birdie:C.bogey;
                             const label = team.ids.map(id=>(players.find(p=>p.id===id)?.name||"").split(" ")[0]).join(" / ");
                             const fakePlayer = {id:scoreKey, name:label};
                             return (
                               <button key={team.key} onClick={()=>setScorecardView({match:m,player:fakePlayer})} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:8, padding:"6px 10px", cursor:"pointer", textAlign:"left" }}>
                                 <div style={{ color:C.white, fontFamily:"'Barlow Condensed','Arial Narrow',Arial,sans-serif", fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.04em" }}>{label}</div>
-                                {gross>0 && <div style={{ color:C.grey2, fontFamily:"'Barlow Condensed','Arial Narrow',Arial,sans-serif", fontSize:9, fontWeight:600, marginTop:2 }}>{gross} <span style={{ color:vp<=0?C.birdie:C.bogey }}>{vp===0?"E":vp>0?`+${vp}`:vp}</span></div>}
+                                {gross>0 && <div style={{ fontFamily:"'Barlow Condensed','Arial Narrow',Arial,sans-serif", fontSize:11, fontWeight:800, marginTop:2, color:vpColor }}>{vpStr}</div>}
                               </button>
                             );
                           })
                         ) : (
                           allPlayers.map(pl => {
-                            const scores = (m.playerScores||{})[pl.id]||[];
-                            const gross = scores.filter(x=>x>0).reduce((a,b)=>a+b,0);
                             const pars = courseObj?.pars||Array(18).fill(4);
                             const vp = playerVsPar(pl.id, m.playerScores||{}, pars);
+                            const scores = (m.playerScores||{})[pl.id]||[];
+                            const gross = scores.filter(x=>x>0).reduce((a,b)=>a+b,0);
+                            const vpStr = vp===0?"E":vp>0?`+${vp}`:`${vp}`;
+                            const vpColor = vp<=0?C.birdie:C.bogey;
                             return (
                               <button key={pl.id} onClick={()=>setScorecardView({match:m,player:pl})} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:8, padding:"6px 10px", cursor:"pointer", textAlign:"left" }}>
-                                <div style={{ color:C.white, fontFamily:"'Barlow Condensed','Arial Narrow',Arial,sans-serif", fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.04em" }}>{pl.name}</div>
-                                {gross>0 && <div style={{ color:C.grey2, fontFamily:"'Barlow Condensed','Arial Narrow',Arial,sans-serif", fontSize:9, fontWeight:600, marginTop:2 }}>{gross} <span style={{ color:vp<=0?C.birdie:C.bogey }}>{vp===0?"E":vp>0?`+${vp}`:vp}</span></div>}
+                                <div style={{ color:C.white, fontFamily:"'Barlow Condensed','Arial Narrow',Arial,sans-serif", fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.04em" }}>{pl.name.split(" ")[0]}</div>
+                                {gross>0 && <div style={{ fontFamily:"'Barlow Condensed','Arial Narrow',Arial,sans-serif", fontSize:11, fontWeight:800, marginTop:2, color:vpColor }}>{vpStr}</div>}
                               </button>
                             );
                           })
