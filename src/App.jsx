@@ -465,7 +465,7 @@ function LeaderboardPage({ data, onNavigate }) {
 }
 
 // ── Player Scorecard ──────────────────────────────────────────────────────────
-function PlayerScorecard({ player, match, course, onBack, players = [] }) {
+function PlayerScorecard({ player, match, course, onBack }) {
   const pars = course?.pars || Array(18).fill(4);
   const scores = (match.playerScores || {})[player.id] || [];
   const front = HOLES.slice(0, 9);
@@ -473,16 +473,10 @@ function PlayerScorecard({ player, match, course, onBack, players = [] }) {
   const frontTotal = playerGrossTotal(player.id, match.playerScores || {}, front);
   const backTotal = playerGrossTotal(player.id, match.playerScores || {}, back);
   const total = frontTotal + backTotal;
-  // Only count par for holes that have been played
   const frontPar = front.reduce((s, h) => s + (pars[h - 1] || 4), 0);
   const backPar = back.reduce((s, h) => s + (pars[h - 1] || 4), 0);
   const totalPar = frontPar + backPar;
-  const playerScoresArr = (match.playerScores || {})[player.id] || [];
-  const frontPlayedPar = front.reduce((s, h) => playerScoresArr[h-1] > 0 ? s + (pars[h-1] || 4) : s, 0);
-  const backPlayedPar = back.reduce((s, h) => playerScoresArr[h-1] > 0 ? s + (pars[h-1] || 4) : s, 0);
-  const frontDiff = frontTotal > 0 ? frontTotal - frontPlayedPar : null;
-  const backDiff = backTotal > 0 ? backTotal - backPlayedPar : null;
-  const totalDiff = total > 0 ? total - (frontPlayedPar + backPlayedPar) : null;
+  const totalDiff = total > 0 ? total - totalPar : null;
   const fmtVsPar = v => v === 0 ? "E" : v > 0 ? `+${v}` : `${v}`;
 
   // Returns rendering config for each score relative to par
@@ -557,18 +551,18 @@ function PlayerScorecard({ player, match, course, onBack, players = [] }) {
       <div style={{ padding: "0 16px 16px" }}>
         <button onClick={onBack} style={{ background: "none", border: "none", color: C.grey2, ...BC, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", cursor: "pointer", marginBottom: 14, padding: 0 }}>← BACK</button>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            {(() => { const pl = players.find(p => p.id === player.id); return pl ? <PlayerAvatar player={pl} size={44} fontSize={15} /> : null; })()}
-            <div>
-              <div style={{ color: C.white, ...BC, fontSize: 26, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase" }}>{player.name}</div>
-              <div style={{ color: C.grey2, ...BC, fontSize: 9, fontWeight: 700, letterSpacing: "0.2em", marginTop: 2 }}>
-                {course?.name?.toUpperCase() || "SCORECARD"}{course ? " · PAR " + totalPar : ""}
-              </div>
+          <div>
+            <div style={{ color: C.white, ...BC, fontSize: 26, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase" }}>{player.name}</div>
+            <div style={{ color: C.grey2, ...BC, fontSize: 9, fontWeight: 700, letterSpacing: "0.2em", marginTop: 2 }}>
+              {course?.name?.toUpperCase() || "SCORECARD"}{course ? " · PAR " + totalPar : ""}
             </div>
           </div>
           {total > 0 && (
             <div style={{ textAlign: "right" }}>
-              <div style={{ color: totalDiff < 0 ? C.birdie : totalDiff === 0 ? C.white : C.bogey, ...BC, fontSize: 36, fontWeight: 800, lineHeight: 1 }}>{fmtVsPar(totalDiff)}</div>
+              <div style={{ color: C.white, ...BC, fontSize: 36, fontWeight: 800, lineHeight: 1 }}>{total}</div>
+              <div style={{ color: totalDiff < 0 ? C.birdie : totalDiff === 0 ? C.white : C.bogey, ...BC, fontSize: 12, fontWeight: 700, marginTop: 2 }}>
+                {fmtVsPar(totalDiff)}
+              </div>
             </div>
           )}
         </div>
@@ -578,7 +572,7 @@ function PlayerScorecard({ player, match, course, onBack, players = [] }) {
       {[front, back].map((half, hi) => {
         const halfPar = hi === 0 ? frontPar : backPar;
         const halfTotal = hi === 0 ? frontTotal : backTotal;
-        const halfDiff = hi === 0 ? frontDiff : backDiff;
+        const halfDiff = halfTotal > 0 ? halfTotal - halfPar : null;
 
         return (
           <div key={hi} style={{ marginBottom: 2, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
@@ -634,8 +628,8 @@ function PlayerScorecard({ player, match, course, onBack, players = [] }) {
       {total > 0 && (
         <div style={{ margin: "12px 16px 0", ...surf(), borderRadius: 10, padding: "12px 16px", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, textAlign: "center" }}>
           {[
-            { label: "FRONT", val: frontTotal, diff: frontDiff },
-            { label: "BACK",  val: backTotal,  diff: backDiff },
+            { label: "FRONT", val: frontTotal, diff: frontTotal > 0 ? frontTotal - frontPar : null },
+            { label: "BACK",  val: backTotal,  diff: backTotal > 0  ? backTotal  - backPar  : null },
             { label: "TOTAL", val: total,      diff: totalDiff },
           ].map(({ label, val, diff }) => (
             <div key={label}>
@@ -666,7 +660,7 @@ function AllSessionsPage({ data, onBack }) {
 
   if (scorecardView) {
     const course = courses.find(c => c.id === sessions.find(s => s.id === scorecardView.match.sessionId)?.courseId);
-    return <PlayerScorecard player={scorecardView.player} match={scorecardView.match} course={course} onBack={() => setScorecardView(null)} players={players} />;
+    return <PlayerScorecard player={scorecardView.player} match={scorecardView.match} course={course} onBack={() => setScorecardView(null)} />;
   }
 
   const statusColor = s => s.status === "active" ? C.white : s.status === "completed" ? "#6FCF8A" : C.grey3;
@@ -783,7 +777,7 @@ function SessionsPage({ data }) {
 
   if (scorecardView) {
     const course = courses.find(c => c.id === sessions.find(s => s.id === scorecardView.match.sessionId)?.courseId);
-    return <PlayerScorecard player={scorecardView.player} match={scorecardView.match} course={course} onBack={() => setScorecardView(null)} players={players} />;
+    return <PlayerScorecard player={scorecardView.player} match={scorecardView.match} course={course} onBack={() => setScorecardView(null)} />;
   }
 
   return (
@@ -3403,8 +3397,23 @@ export default function App() {
     (async () => {
       let d = await load("beehive-cup-data");
       if (!d) {
-        d = DEFAULT_DATA;
-        await save("beehive-cup-data", d);
+        // Only save DEFAULT_DATA if Supabase explicitly has no row (not just a load failure)
+        // Check Supabase directly to confirm truly empty before overwriting
+        try {
+          const check = await sbFetch(`/rest/v1/app_data?key=eq.beehive-cup-data&select=key`);
+          if (!check || check.length === 0) {
+            // Truly no data in Supabase — safe to seed
+            d = DEFAULT_DATA;
+            await save("beehive-cup-data", d);
+          } else {
+            // Data exists in Supabase but load failed — retry once
+            d = await load("beehive-cup-data");
+            if (!d) d = DEFAULT_DATA; // last resort, don't save
+          }
+        } catch {
+          // Network error — use DEFAULT_DATA locally but DO NOT save to Supabase
+          d = DEFAULT_DATA;
+        }
       } else {
         // Merge in any new seed courses not already present
         const existingIds = new Set((d.courses || []).map(c => c.id));
