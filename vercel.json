@@ -1,6 +1,7 @@
 {
   "rewrites": [
     { "source": "/preview", "destination": "/preview.html" },
-    { "source": "/((?!preview).*)", "destination": "/index.html" }
+    { "source": "/matchup-creation", "destination": "/matchup-creation.html" },
+    { "source": "/((?!preview|matchup-creation).*)", "destination": "/index.html" }
   ]
 }
