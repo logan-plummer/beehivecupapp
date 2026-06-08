@@ -2999,12 +2999,40 @@ function AdminHistoryTab({ data, onUpdate }) {
         {/* Existing sessions */}
         {(year.sessions || []).map(session => (
           <div key={session.id} style={{ ...surf(), borderRadius: 12, padding: 14, marginBottom: 10, border: "1px solid " + C.border }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <div>
-                <div style={{ color: C.white, ...BC, fontSize: 14, fontWeight: 700 }}>{session.name}</div>
-                <div style={{ color: C.grey2, ...BC, fontSize: 9, letterSpacing: "0.08em" }}>{FORMAT_LABELS[session.format]} {session.course ? "· " + session.course : ""}</div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+              <div style={{ flex: 1, marginRight: 8 }}>
+                <div style={{ color: C.white, ...BC, fontSize: 14, fontWeight: 700, marginBottom: 6 }}>{session.name}</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                  <select
+                    value={session.format || "fourball"}
+                    onChange={async e => {
+                      const updated = history.map(y => y.id !== year.id ? y : {
+                        ...y, sessions: (y.sessions || []).map(s => s.id !== session.id ? s : { ...s, format: e.target.value })
+                      });
+                      await onUpdate({ ...data, history: updated });
+                    }}
+                    style={{ background: C.surface, border: "1px solid " + C.border, borderRadius: 6, padding: "5px 8px", color: C.white, fontFamily: "'Barlow Condensed', Arial, sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", cursor: "pointer", appearance: "none" }}>
+                    <option value="fourball">Best Ball</option>
+                    <option value="scramble">Scramble</option>
+                    <option value="singles">Singles</option>
+                    <option value="foursomes">Alternate Shot</option>
+                  </select>
+                  <select
+                    value={session.courseId || ""}
+                    onChange={async e => {
+                      const course = (data.courses || []).find(c => c.id === e.target.value);
+                      const updated = history.map(y => y.id !== year.id ? y : {
+                        ...y, sessions: (y.sessions || []).map(s => s.id !== session.id ? s : { ...s, courseId: e.target.value, course: course?.name || "" })
+                      });
+                      await onUpdate({ ...data, history: updated });
+                    }}
+                    style={{ background: C.surface, border: "1px solid " + C.border, borderRadius: 6, padding: "5px 8px", color: C.white, fontFamily: "'Barlow Condensed', Arial, sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", cursor: "pointer", appearance: "none" }}>
+                    <option value="">No course set</option>
+                    {(data.courses || []).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
               </div>
-              <Btn onClick={() => deleteSession(year.id, session.id)} color={C.danger} style={{ padding: "5px 9px", fontSize: 10 }}>✕</Btn>
+              <Btn onClick={() => deleteSession(year.id, session.id)} color={C.danger} style={{ padding: "5px 9px", fontSize: 10, flexShrink: 0 }}>✕</Btn>
             </div>
 
             {/* Existing matches */}
