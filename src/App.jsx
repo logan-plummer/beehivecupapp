@@ -1092,20 +1092,23 @@ function HoleMap({ hole, par, course, onClose }) {
 }
 
 // ── Score Entry ───────────────────────────────────────────────────────────────
-function ScoreEntryPage({ data, onUpdate }) {
+function ScoreEntryPage({ data, onUpdate, selectedMatchId, setSelectedMatchId }) {
   const { players } = data;
   const courses = data.courses || [];
   const cy = data.currentYear;
   const sessions = cy?.sessions || [];
   const matches = cy?.matches || [];
   const cyTeams = cy?.teams || [];
-  const [selectedMatch, setSelectedMatch] = useState(null);
   const [playerScores, setPlayerScores] = useState({});
   const [currentHole, setCurrentHole] = useState(1);
   const [showHoleMap, setShowHoleMap] = useState(false);
+  // selectedMatch is derived from app-level selectedMatchId so it persists across tab switches
+  const selectedMatch = matches.find(m => m.id === selectedMatchId) || null;
+  function setSelectedMatch(m) { setSelectedMatchId(m ? m.id : null); }
   const teamA = cyTeams.find(t => t.id === "A") || { id: "A", name: "Team A" };
   const teamB = cyTeams.find(t => t.id === "B") || { id: "B", name: "Team B" };
-  const activeMatches = cy?.status === "active" ? matches : [];
+  const activeSession = sessions.find(s => s.status === "active");
+  const activeMatches = activeSession ? matches.filter(m => m.sessionId === activeSession.id) : matches;
   const getPName = id => players.find(p => p.id === id)?.name || id;
 
   // For scramble/foursomes: one score per team, stored under "teamA_ID" and "teamB_ID" keys
@@ -3516,6 +3519,7 @@ export default function App() {
   const [page, setPage] = useState("leaderboard");
   const [data, setData] = useState(null);
   const [adminUnlocked, setAdminUnlocked] = useState(false);
+  const [selectedMatchId, setSelectedMatchId] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -3616,7 +3620,7 @@ export default function App() {
           {page === "leaderboard" && <LeaderboardPage data={data} onNavigate={setPage} />}
           {page === "allsessions" && <AllSessionsPage data={data} onBack={() => setPage("leaderboard")} />}
           {page === "sessions" && <AllSessionsPage data={data} onBack={() => setPage("leaderboard")} />}
-          {page === "score" && <ScoreEntryPage data={data} onUpdate={handleUpdate} />}
+          {page === "score" && <ScoreEntryPage data={data} onUpdate={handleUpdate} selectedMatchId={selectedMatchId} setSelectedMatchId={setSelectedMatchId} />}
           {page === "records" && <RecordsPage data={data} />}
           {page === "admin" && <AdminPage data={data} onUpdate={handleUpdate} adminUnlocked={adminUnlocked} setAdminUnlocked={setAdminUnlocked} onExport={exportData} onImport={importData} />}
         </div>
