@@ -1239,8 +1239,22 @@ function ScoreEntryPage({ data, onUpdate }) {
                 {holeWinner === "A" ? (teamA?.name || "A").toUpperCase() : holeWinner === "B" ? (teamB?.name || "B").toUpperCase() : holeWinner === "half" ? "HALVED" : "—"}
               </div>
             </div>
-            <button onClick={() => setShowHoleMap(true)} style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 8, padding: "8px 4px", color: C.white, ...BC, fontSize: 8, fontWeight: 700, letterSpacing: "0.08em", cursor: "pointer", lineHeight: 1.4 }}>
-              VIEW<br/>MAP
+            <button onClick={() => {
+                // Clear scores for current hole for all players in this match
+                const allIds = isTeamFormat(selectedMatch.format)
+                  ? [teamScoreId(selectedMatch.id,"A"), teamScoreId(selectedMatch.id,"B")]
+                  : [...(selectedMatch.playerAIds||[]), ...(selectedMatch.playerBIds||[])];
+                const updated = { ...playerScores };
+                allIds.forEach(id => {
+                  if (updated[id]) {
+                    const arr = [...(updated[id] || Array(18).fill(0))];
+                    arr[h - 1] = 0;
+                    updated[id] = arr;
+                  }
+                });
+                setPlayerScores(updated);
+              }} style={{ background: "rgba(232,112,112,0.12)", border: "1px solid rgba(232,112,112,0.25)", borderRadius: 8, padding: "8px 4px", color: "#E87070", ...BC, fontSize: 8, fontWeight: 700, letterSpacing: "0.08em", cursor: "pointer", lineHeight: 1.4 }}>
+              CLEAR<br/>HOLE
             </button>
           </div>
 
@@ -1764,7 +1778,12 @@ function AdminCupSetupTab({ data, onUpdate }) {
     if (!cy) return;
     if (!confirmComplete) { setConfirmComplete(true); return; }
     setConfirmComplete(false);
-    const historyEntry = { ...cy, status: "complete", id: "y_" + cy.year + "_" + Date.now() };
+    // Archive: move all session results into history
+    const archivedSessions = (cy.sessions || []).map(s => {
+      const sMatches = (cy.matches || []).filter(m => m.sessionId === s.id);
+      return { ...s, matches: sMatches };
+    });
+    const historyEntry = { ...cy, status: "complete", id: "y_" + cy.year + "_" + Date.now(), sessions: archivedSessions };
     const newHistory = [...(data.history || []), historyEntry];
     const nextYear = (cy.year || new Date().getFullYear()) + 1;
     const newCY = {
@@ -2486,6 +2505,84 @@ function PlayerProfile({ player, data, stats, onBack }) {
           </div>
         ))}
       </div>
+
+      {/* Format records */}
+      {(() => {
+        const fmtStats = {};
+        const courseStats = {};
+        history.forEach(year => {
+          (year.sessions || []).forEach(session => {
+            const fmt = session.format || "unknown";
+            const cname = session.course || (data.courses || []).find(c => c.id === session.courseId)?.name || "";
+            if (!fmtStats[fmt]) fmtStats[fmt] = {W:0,L:0,D:0};
+            if (cname && !courseStats[cname]) courseStats[cname] = {W:0,L:0,D:0};
+            (session.matches || []).forEach(match => {
+              const onA = (match.playerAIds || []).includes(player.id);
+              const onB = (match.playerBIds || []).includes(player.id);
+              if (!onA && !onB) return;
+              const res = match.result;
+              const isWin = (onA && res==="A")||(onB && res==="B");
+              const isLoss = (onA && res==="B")||(onB && res==="A");
+              fmtStats[fmt].W += isWin?1:0;
+              fmtStats[fmt].L += isLoss?1:0;
+              fmtStats[fmt].D += (!isWin&&!isLoss)?1:0;
+              if (cname) {
+                courseStats[cname].W += isWin?1:0;
+                courseStats[cname].L += isLoss?1:0;
+                courseStats[cname].D += (!isWin&&!isLoss)?1:0;
+              }
+            });
+          });
+        });
+        const fmtLabels = { singles:"Singles", fourball:"Best Ball", scramble:"Scramble", foursomes:"Alt Shot" };
+        const fmtEntries = Object.entries(fmtStats).filter(([,v])=>v.W+v.L+v.D>0);
+        const courseEntries = Object.entries(courseStats).filter(([,v])=>v.W+v.L+v.D>0);
+        if (!fmtEntries.length) return null;
+        return (
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ color: C.grey2, ...BC, fontSize: 9, fontWeight: 700, letterSpacing: "0.2em", marginBottom: 10 }}>BY FORMAT</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 20 }}>
+              {fmtEntries.map(([fmt, v]) => {
+                const pm = v.W-v.L;
+                const pmColor = pm>0?"#6FCF8A":pm<0?C.double:C.grey2;
+                const total = v.W+v.L+v.D;
+                const pct = total>0?Math.round(v.W/total*100):0;
+                return (
+                  <div key={fmt} style={{ ...surf(), borderRadius: 10, padding: "10px 14px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <div>
+                      <div style={{ color: C.white, ...BC, fontSize: 13, fontWeight: 700 }}>{fmtLabels[fmt]||fmt}</div>
+                      <div style={{ color: C.grey2, ...BC, fontSize: 9, fontWeight: 600, letterSpacing:"0.08em", marginTop: 2 }}>{v.W}W · {v.L}L · {v.D}D · {pct}%</div>
+                    </div>
+                    <div style={{ color: pmColor, ...BC, fontSize: 22, fontWeight: 900 }}>{pm>0?"+"+pm:pm}</div>
+                  </div>
+                );
+              })}
+            </div>
+            {courseEntries.length > 0 && (
+              <>
+                <div style={{ color: C.grey2, ...BC, fontSize: 9, fontWeight: 700, letterSpacing: "0.2em", marginBottom: 10 }}>BY COURSE</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 20 }}>
+                  {courseEntries.map(([cname, v]) => {
+                    const pm = v.W-v.L;
+                    const pmColor = pm>0?"#6FCF8A":pm<0?C.double:C.grey2;
+                    const total = v.W+v.L+v.D;
+                    const pct = total>0?Math.round(v.W/total*100):0;
+                    return (
+                      <div key={cname} style={{ ...surf(), borderRadius: 10, padding: "10px 14px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                        <div>
+                          <div style={{ color: C.white, ...BC, fontSize: 13, fontWeight: 700 }}>{cname}</div>
+                          <div style={{ color: C.grey2, ...BC, fontSize: 9, fontWeight: 600, letterSpacing:"0.08em", marginTop: 2 }}>{v.W}W · {v.L}L · {v.D}D · {pct}%</div>
+                        </div>
+                        <div style={{ color: pmColor, ...BC, fontSize: 22, fontWeight: 900 }}>{pm>0?"+"+pm:pm}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Year by year */}
       {yearStats.length > 0 && (
