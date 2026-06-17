@@ -1695,7 +1695,17 @@ function AdminCoursesTab({ data, onUpdate }) {
                   {half.map(h => (
                     <div key={h} style={{ textAlign: "center" }}>
                       <div style={{ color: "#2a2a2a", fontFamily: "'Barlow Condensed', 'Arial Narrow', Arial, sans-serif", fontSize: 7, fontWeight: 700, marginBottom: 2 }}>{h}</div>
-                      <div style={{ height: 22, borderRadius: 3, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Barlow Condensed', 'Arial Narrow', Arial, sans-serif", fontSize: 12, fontWeight: 700, background: "rgba(255,255,255,0.08)", color: "#555", border: "1px solid rgba(255,255,255,0.14)" }}>{(c.pars || [])[h - 1] || 4}</div>
+                      <select
+                        value={(c.pars || [])[h - 1] || 4}
+                        onChange={async e => {
+                          const newPars = [...(c.pars || Array(18).fill(4))];
+                          newPars[h - 1] = Number(e.target.value);
+                          const updatedCourses = courses.map(co => co.id === c.id ? { ...co, pars: newPars } : co);
+                          await onUpdate({ ...data, courses: updatedCourses });
+                        }}
+                        style={{ height: 22, width: "100%", borderRadius: 3, textAlign: "center", fontFamily: "'Barlow Condensed', 'Arial Narrow', Arial, sans-serif", fontSize: 12, fontWeight: 700, background: "rgba(255,255,255,0.08)", color: "#fff", border: "1px solid rgba(255,255,255,0.14)", outline: "none", appearance: "none", cursor: "pointer" }}>
+                        {[3,4,5,6].map(p => <option key={p} value={p}>{p}</option>)}
+                      </select>
                     </div>
                   ))}
                 </div>
