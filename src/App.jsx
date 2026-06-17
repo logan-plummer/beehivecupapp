@@ -1793,9 +1793,13 @@ function AdminCupSetupTab({ data, onUpdate }) {
     if (!cy) return;
     if (!confirmComplete) { setConfirmComplete(true); return; }
     setConfirmComplete(false);
-    // Archive: move all session results into history
+    // Archive: move all session results into history, computing and baking in each match's final result
     const archivedSessions = (cy.sessions || []).map(s => {
-      const sMatches = (cy.matches || []).filter(m => m.sessionId === s.id);
+      const sMatches = (cy.matches || []).filter(m => m.sessionId === s.id).map(m => {
+        const computed = computeMatchFromScores(m);
+        const result = computed.winner === "A" ? "A" : computed.winner === "B" ? "B" : "H";
+        return { ...m, result };
+      });
       return { ...s, matches: sMatches };
     });
     const historyEntry = { ...cy, status: "complete", id: "y_" + cy.year + "_" + Date.now(), sessions: archivedSessions };
@@ -2600,6 +2604,60 @@ function PlayerProfile({ player, data, stats, onBack }) {
       })()}
 
       {/* Year by year */}
+      {(() => {
+        // Gather every individual round this player has logged, with gross score and vs-par
+        const rounds = [];
+        history.forEach(year => {
+          (year.sessions || []).forEach(session => {
+            const course = (data.courses || []).find(c => c.id === session.courseId) || { pars: Array(18).fill(4) };
+            (session.matches || []).forEach(match => {
+              const onA = (match.playerAIds || []).includes(player.id);
+              const onB = (match.playerBIds || []).includes(player.id);
+              const isTeamFmt = match.format === "scramble" || match.format === "foursomes";
+              let scoreKey = player.id;
+              if (isTeamFmt) {
+                if (onA) scoreKey = match.id + "_A";
+                else if (onB) scoreKey = match.id + "_B";
+              }
+              if (!onA && !onB) return;
+              const arr = (match.playerScores || {})[scoreKey];
+              if (!arr || !arr.some(s => s > 0)) return;
+              const gross = arr.reduce((sum, s) => sum + (s > 0 ? s : 0), 0);
+              const holesPlayed = arr.filter(s => s > 0).length;
+              const parTotal = arr.reduce((sum, s, i) => sum + (s > 0 ? (course.pars?.[i] || 4) : 0), 0);
+              const vsPar = gross - parTotal;
+              rounds.push({ year: year.year, course: session.course || course.name || "Unknown", format: match.format, gross, vsPar, holesPlayed, date: session.date });
+            });
+          });
+        });
+        rounds.sort((a, b) => b.year - a.year);
+        if (!rounds.length) return null;
+        const fmtLabels = { singles: "Singles", fourball: "Best Ball", scramble: "Scramble", foursomes: "Alt Shot" };
+        return (
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ color: C.grey2, ...BC, fontSize: 9, fontWeight: 700, letterSpacing: "0.2em", marginBottom: 10 }}>ROUNDS PLAYED</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {rounds.map((r, i) => {
+                const vpColor = r.vsPar < 0 ? "#6FCF8A" : r.vsPar > 0 ? C.double : C.grey2;
+                const vpLabel = r.vsPar === 0 ? "E" : r.vsPar > 0 ? "+" + r.vsPar : r.vsPar;
+                return (
+                  <div key={i} style={{ ...surf(), borderRadius: 10, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                      <div style={{ color: C.white, ...BC, fontSize: 13, fontWeight: 700 }}>{r.course}</div>
+                      <div style={{ color: C.grey2, ...BC, fontSize: 9, fontWeight: 600, letterSpacing: "0.08em", marginTop: 2 }}>{r.year} · {fmtLabels[r.format] || r.format} · {r.holesPlayed} holes</div>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ color: C.white, ...BC, fontSize: 18, fontWeight: 800 }}>{r.gross}</div>
+                      <div style={{ color: vpColor, ...BC, fontSize: 11, fontWeight: 700 }}>{vpLabel}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
       {yearStats.length > 0 && (
         <div>
           <div style={{ color: C.grey2, ...BC, fontSize: 9, fontWeight: 700, letterSpacing: "0.2em", marginBottom: 10 }}>YEAR BY YEAR</div>
