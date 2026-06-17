@@ -2414,10 +2414,108 @@ function PlayersTab({ stats, players, onSelect, data }) {
 }
 
 // ── Player Profile ────────────────────────────────────────────────────────────
+function RoundsPlayedPage({ player, data, onBack }) {
+  const history = data.history || [];
+  const [scorecardView, setScorecardView] = useState(null); // { match, course, scoreKey }
+
+  const rounds = [];
+  history.forEach(year => {
+    (year.sessions || []).forEach(session => {
+      const course = (data.courses || []).find(c => c.id === session.courseId) || { pars: Array(18).fill(4), name: session.course || "Unknown" };
+      (session.matches || []).forEach(match => {
+        const onA = (match.playerAIds || []).includes(player.id);
+        const onB = (match.playerBIds || []).includes(player.id);
+        if (!onA && !onB) return;
+        const isTeamFmt = match.format === "scramble" || match.format === "foursomes";
+        const scoreKey = isTeamFmt ? (onA ? match.id + "_A" : match.id + "_B") : player.id;
+        const arr = (match.playerScores || {})[scoreKey];
+        if (!arr || !arr.some(sc => sc > 0)) return;
+        const gross = arr.reduce((sum, sc) => sum + (sc > 0 ? sc : 0), 0);
+        const holesPlayed = arr.filter(sc => sc > 0).length;
+        const parTotal = arr.reduce((sum, sc, i) => sum + (sc > 0 ? (course.pars?.[i] || 4) : 0), 0);
+        const vsPar = gross - parTotal;
+
+        // Opponent names
+        const oppIds = onA ? (match.playerBIds || []) : (match.playerAIds || []);
+        const oppNames = oppIds.map(id => (data.players || []).find(p => p.id === id)?.name || "?").join(" / ");
+
+        // Result for this player
+        const res = match.result;
+        const isWin = (onA && res === "A") || (onB && res === "B");
+        const isLoss = (onA && res === "B") || (onB && res === "A");
+        const resultLabel = isWin ? "W" : isLoss ? "L" : "D";
+        const resultColor = isWin ? "#6FCF8A" : isLoss ? C.double : C.grey2;
+
+        rounds.push({
+          year: year.year, courseName: session.course || course.name || "Unknown",
+          format: match.format, gross, vsPar, holesPlayed, oppNames, resultLabel, resultColor,
+          match, course, scoreKey,
+        });
+      });
+    });
+  });
+  rounds.sort((a, b) => b.year - a.year);
+
+  const fmtLabels = { singles: "Singles", fourball: "Best Ball", scramble: "Scramble", foursomes: "Alt Shot" };
+
+  if (scorecardView) {
+    // PlayerScorecard expects player.id to key into match.playerScores directly;
+    // for team formats we wrap with a virtual player id matching the team score key
+    const virtualPlayer = scorecardView.scoreKey === player.id ? player : { ...player, id: scorecardView.scoreKey };
+    return <PlayerScorecard player={virtualPlayer} match={scorecardView.match} course={scorecardView.course} onBack={() => setScorecardView(null)} />;
+  }
+
+  return (
+    <div style={{ padding: "16px 16px 100px" }}>
+      <button onClick={onBack} style={{ background: "none", border: "none", color: C.grey2, ...BC, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", cursor: "pointer", marginBottom: 16, padding: 0 }}>← BACK</button>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+        <PlayerAvatar player={player} size={48} fontSize={17} />
+        <div>
+          <div style={{ color: C.white, ...BC, fontSize: 20, fontWeight: 800, letterSpacing: "0.04em", textTransform: "uppercase" }}>{player.name}</div>
+          <div style={{ color: C.grey2, ...BC, fontSize: 10, fontWeight: 700, letterSpacing: "0.14em" }}>{rounds.length} ROUNDS PLAYED</div>
+        </div>
+      </div>
+
+      {rounds.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "48px 20px", color: C.grey2, ...BC, fontSize: 11, fontWeight: 700, letterSpacing: "0.1em" }}>NO ROUNDS LOGGED YET</div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {rounds.map((r, i) => {
+            const vpColor = r.vsPar < 0 ? "#6FCF8A" : r.vsPar > 0 ? C.double : C.grey2;
+            const vpLabel = r.vsPar === 0 ? "E" : r.vsPar > 0 ? "+" + r.vsPar : r.vsPar;
+            return (
+              <button key={i} onClick={() => setScorecardView({ match: r.match, course: r.course, scoreKey: r.scoreKey })}
+                style={{ ...surf(), borderRadius: 12, padding: "12px 16px", textAlign: "left", border: "1px solid " + C.border, cursor: "pointer", width: "100%" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                      <span style={{ color: C.white, ...BC, fontSize: 14, fontWeight: 700 }}>{r.courseName}</span>
+                      <span style={{ color: r.resultColor, ...BC, fontSize: 10, fontWeight: 800, background: "rgba(255,255,255,0.06)", borderRadius: 5, padding: "1px 6px" }}>{r.resultLabel}</span>
+                    </div>
+                    <div style={{ color: C.grey2, ...BC, fontSize: 10, fontWeight: 600, letterSpacing: "0.06em" }}>{r.year} · {fmtLabels[r.format] || r.format} · {r.holesPlayed} holes</div>
+                    <div style={{ color: C.grey3, ...BC, fontSize: 10, fontWeight: 600, letterSpacing: "0.04em", marginTop: 2 }}>vs {r.oppNames}</div>
+                  </div>
+                  <div style={{ textAlign: "right", flexShrink: 0, marginLeft: 12 }}>
+                    <div style={{ color: C.white, ...BC, fontSize: 20, fontWeight: 800 }}>{r.gross}</div>
+                    <div style={{ color: vpColor, ...BC, fontSize: 11, fontWeight: 700 }}>{vpLabel}</div>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PlayerProfile({ player, data, stats, onBack }) {
   const history = data.history || [];
   const s = stats;
+  const [showRounds, setShowRounds] = useState(false);
   if (!s) return <div style={{ padding: 16 }}><button onClick={onBack} style={{ background: "none", border: "none", color: C.grey2, ...BC, fontSize: 10, fontWeight: 700, cursor: "pointer" }}>← BACK</button></div>;
+  if (showRounds) return <RoundsPlayedPage player={player} data={data} onBack={() => setShowRounds(false)} />;
 
   const pm = plusMinus(s);
   const total = s.W + s.L + s.D;
@@ -2451,6 +2549,12 @@ function PlayerProfile({ player, data, stats, onBack }) {
   return (
     <div style={{ padding: "16px 16px 100px" }}>
       <button onClick={onBack} style={{ background: "none", border: "none", color: C.grey2, ...BC, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", cursor: "pointer", marginBottom: 16, padding: 0 }}>← BACK</button>
+
+      {/* Rounds Played button */}
+      <button onClick={() => setShowRounds(true)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid " + C.border, borderRadius: 12, padding: "12px 16px", marginBottom: 16, cursor: "pointer" }}>
+        <span style={{ color: C.white, ...BC, fontSize: 12, fontWeight: 700, letterSpacing: "0.1em" }}>⛳ ROUNDS PLAYED</span>
+        <span style={{ color: C.grey2, ...BC, fontSize: 12, fontWeight: 700 }}>→</span>
+      </button>
 
       {/* Player header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
@@ -2604,60 +2708,6 @@ function PlayerProfile({ player, data, stats, onBack }) {
       })()}
 
       {/* Year by year */}
-      {(() => {
-        // Gather every individual round this player has logged, with gross score and vs-par
-        const rounds = [];
-        history.forEach(year => {
-          (year.sessions || []).forEach(session => {
-            const course = (data.courses || []).find(c => c.id === session.courseId) || { pars: Array(18).fill(4) };
-            (session.matches || []).forEach(match => {
-              const onA = (match.playerAIds || []).includes(player.id);
-              const onB = (match.playerBIds || []).includes(player.id);
-              const isTeamFmt = match.format === "scramble" || match.format === "foursomes";
-              let scoreKey = player.id;
-              if (isTeamFmt) {
-                if (onA) scoreKey = match.id + "_A";
-                else if (onB) scoreKey = match.id + "_B";
-              }
-              if (!onA && !onB) return;
-              const arr = (match.playerScores || {})[scoreKey];
-              if (!arr || !arr.some(s => s > 0)) return;
-              const gross = arr.reduce((sum, s) => sum + (s > 0 ? s : 0), 0);
-              const holesPlayed = arr.filter(s => s > 0).length;
-              const parTotal = arr.reduce((sum, s, i) => sum + (s > 0 ? (course.pars?.[i] || 4) : 0), 0);
-              const vsPar = gross - parTotal;
-              rounds.push({ year: year.year, course: session.course || course.name || "Unknown", format: match.format, gross, vsPar, holesPlayed, date: session.date });
-            });
-          });
-        });
-        rounds.sort((a, b) => b.year - a.year);
-        if (!rounds.length) return null;
-        const fmtLabels = { singles: "Singles", fourball: "Best Ball", scramble: "Scramble", foursomes: "Alt Shot" };
-        return (
-          <div style={{ marginBottom: 24 }}>
-            <div style={{ color: C.grey2, ...BC, fontSize: 9, fontWeight: 700, letterSpacing: "0.2em", marginBottom: 10 }}>ROUNDS PLAYED</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {rounds.map((r, i) => {
-                const vpColor = r.vsPar < 0 ? "#6FCF8A" : r.vsPar > 0 ? C.double : C.grey2;
-                const vpLabel = r.vsPar === 0 ? "E" : r.vsPar > 0 ? "+" + r.vsPar : r.vsPar;
-                return (
-                  <div key={i} style={{ ...surf(), borderRadius: 10, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div>
-                      <div style={{ color: C.white, ...BC, fontSize: 13, fontWeight: 700 }}>{r.course}</div>
-                      <div style={{ color: C.grey2, ...BC, fontSize: 9, fontWeight: 600, letterSpacing: "0.08em", marginTop: 2 }}>{r.year} · {fmtLabels[r.format] || r.format} · {r.holesPlayed} holes</div>
-                    </div>
-                    <div style={{ textAlign: "right" }}>
-                      <div style={{ color: C.white, ...BC, fontSize: 18, fontWeight: 800 }}>{r.gross}</div>
-                      <div style={{ color: vpColor, ...BC, fontSize: 11, fontWeight: 700 }}>{vpLabel}</div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })()}
-
       {yearStats.length > 0 && (
         <div>
           <div style={{ color: C.grey2, ...BC, fontSize: 9, fontWeight: 700, letterSpacing: "0.2em", marginBottom: 10 }}>YEAR BY YEAR</div>
